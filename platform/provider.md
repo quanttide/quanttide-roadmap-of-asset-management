@@ -108,48 +108,10 @@
 
 ### 事件驱动
 
-将所有 Discovery 结果抽象为事件流，实现松耦合的感知层：
-
-```python
-class DiscoveryEvent(BaseModel):
-    event_type: str  # asset_found | asset_missing | asset_modified | mismatch_detected
-    asset_id: str
-    project_id: str
-    timestamp: datetime
-    payload: Dict[str, Any]
-    severity: str  # info | warning | error
-
-class EventBus:
-    def subscribe(self, event_type: str, handler: Callable):
-        self.handlers.setdefault(event_type, []).append(handler)
-    
-    async def publish(self, event: DiscoveryEvent):
-        for handler in self.handlers.get(event.event_type, []):
-            await handler(event)
-```
+将所有 Discovery 结果抽象为事件流，实现松耦合的感知层。事件类型包括资产发现、缺失、修改和不一致检测，支持订阅不同事件类型触发不同处理逻辑（如通知飞书、更新 Dashboard）。
 
 ### 版本管理
 
-**契约版本快照**：对每次 `contract push` 进行快照存储，保留完整的意图演化历史：
-
-```python
-class ContractVersion(BaseModel):
-    id: str
-    project_id: str
-    contract: Contract
-    version: str
-    digest: str
-    change_type: str  # major | minor | patch
-    committed_by: str
-    committed_at: datetime
-    status: str  # active | rolled_back | deprecated
-```
-
-CLI 命令：
-```bash
-qtcloud-asset contract history --project qtcloud-asset
-qtcloud-asset contract diff 1.2.0 1.3.0
-qtcloud-asset contract rollback 1.2.0
-```
+**契约版本快照**：对每次 `contract push` 进行快照存储，保留完整的意图演化历史。记录版本号、变更类型（major/minor/patch）、提交人和状态，支持查看历史、对比差异和回滚操作。
 
 **Schema 版本语义化**：`spec_version` 遵循 SemVer，服务端同时兼容多版本，不兼容时提示升级。

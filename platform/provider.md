@@ -94,3 +94,62 @@
 | 第四阶段 | 质量门禁 | `check` 命令、CI 集成 | 2-3 周 |
 
 **总计**：8-12 周完成从 CLI 到平台的演化。
+
+## 第五阶段：智能治理
+
+当系统积累足够数据后，从被动响应转向主动治理。
+
+**关键交付**：
+- 治理成本透明化（CLI 实时显示 Governance Score）
+- 自动修复 PR（发现不一致时自动生成修复 PR，开发者审核合并）
+- 从感知到干预的渐进升级（L1 告知 → L2 建议 → L3 协作 → L4 自治）
+
+## 进阶架构
+
+### 事件驱动
+
+将所有 Discovery 结果抽象为事件流，实现松耦合的感知层：
+
+```python
+class DiscoveryEvent(BaseModel):
+    event_type: str  # asset_found | asset_missing | asset_modified | mismatch_detected
+    asset_id: str
+    project_id: str
+    timestamp: datetime
+    payload: Dict[str, Any]
+    severity: str  # info | warning | error
+
+class EventBus:
+    def subscribe(self, event_type: str, handler: Callable):
+        self.handlers.setdefault(event_type, []).append(handler)
+    
+    async def publish(self, event: DiscoveryEvent):
+        for handler in self.handlers.get(event.event_type, []):
+            await handler(event)
+```
+
+### 版本管理
+
+**契约版本快照**：对每次 `contract push` 进行快照存储，保留完整的意图演化历史：
+
+```python
+class ContractVersion(BaseModel):
+    id: str
+    project_id: str
+    contract: Contract
+    version: str
+    digest: str
+    change_type: str  # major | minor | patch
+    committed_by: str
+    committed_at: datetime
+    status: str  # active | rolled_back | deprecated
+```
+
+CLI 命令：
+```bash
+qtcloud-asset contract history --project qtcloud-asset
+qtcloud-asset contract diff 1.2.0 1.3.0
+qtcloud-asset contract rollback 1.2.0
+```
+
+**Schema 版本语义化**：`spec_version` 遵循 SemVer，服务端同时兼容多版本，不兼容时提示升级。
